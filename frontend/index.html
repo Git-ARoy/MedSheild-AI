@@ -1,0 +1,769 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MedShield AI — HomeoCare Defensive SOC Operations (Azure Sandbox)</title>
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                        mono: ['JetBrains Mono', 'monospace'],
+                    },
+                    colors: {
+                        'bg-primary': '#071019',
+                        'bg-secondary': '#0b151f',
+                        'bg-tertiary': '#101d29',
+                        'surface': '#0d1924',
+                        'surface-elevated': '#132231',
+                        'border': '#213342',
+                        'border-strong': '#304657',
+                        'text-primary': '#edf4f8',
+                        'text-secondary': '#a8b8c4',
+                        'text-muted': '#6f8290',
+                        'accent-ai': '#61e6c1',
+                        'accent-cyan': '#55d6e8',
+                        'severity-critical': '#ff4d5f',
+                        'severity-high': '#ff9f43',
+                        'severity-medium': '#f2c94c',
+                        'severity-low': '#53b7ff',
+                        'severity-benign': '#57c785',
+                        'clinical-high': '#ff5c7a',
+                        'azure-blue': '#0078d4',
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body {
+            background-color: #071019;
+            color: #edf4f8;
+            font-family: 'Inter', sans-serif;
+            overflow-x: hidden;
+        }
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #0b151f;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #213342;
+            border-radius: 3px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #304657;
+        }
+        @keyframes pulseSlow {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.4; transform: scale(0.95); }
+        }
+        .animate-pulse-slow {
+            animation: pulseSlow 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+        }
+        .panel-card {
+            background-color: #0d1924;
+            border: 1px solid #213342;
+            border-radius: 0.75rem;
+            transition: border-color 0.2s ease;
+        }
+        .panel-card:hover {
+            border-color: #304657;
+        }
+    </style>
+</head>
+<body class="h-screen flex flex-col antialiased selection:bg-accent-ai selection:text-bg-primary">
+
+    <!-- TOP HEADER BAR -->
+    <header class="h-16 bg-bg-secondary border-b border-border px-6 flex items-center justify-between shrink-0 z-20">
+        <div class="flex items-center gap-6">
+            <div class="flex items-center gap-2.5">
+                <div class="w-8 h-8 rounded-lg bg-surface-elevated border border-border flex items-center justify-center text-accent-ai font-black text-lg">
+                    🛡️
+                </div>
+                <div>
+                    <div class="flex items-center gap-1.5 font-bold tracking-tight text-base">
+                        <span>MedShield</span><span class="text-accent-ai font-extrabold">AI</span>
+                    </div>
+                    <div class="text-[10px] text-text-muted uppercase tracking-widest font-semibold">Defensive Agent · HomeoCare Digital Twin</div>
+                </div>
+            </div>
+            <div class="hidden lg:flex items-center gap-2 pl-6 border-l border-border text-xs">
+                <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-azure-blue/15 text-azure-blue border border-azure-blue/30 font-medium">
+                    <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor"><path d="M13.05 4.24L6.56 18.05l4.82 2.29 6.49-13.81-4.82-2.29zm6.05 4.35l-3.32 7.07 3.32 1.58 3.32-7.07-3.32-1.58zM1.58 15.65l3.32 1.58 3.32-7.07-3.32-1.58-3.32 7.07z"/></svg>
+                    Microsoft Azure Sandbox
+                </span>
+                <span class="text-text-muted">Target: <code class="text-text-secondary font-mono">rg-homeocare-sandbox</code></span>
+            </div>
+        </div>
+
+        <!-- AI Engine Status Block -->
+        <div class="flex items-center gap-5 text-xs">
+            <div class="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-lg bg-surface border border-border">
+                <span class="text-text-muted">Agent Loop:</span>
+                <span id="agent-state-badge" class="px-2 py-0.5 rounded text-[11px] font-mono font-bold bg-accent-ai/15 text-accent-ai border border-accent-ai/30">OBSERVING</span>
+            </div>
+            <div class="flex items-center gap-3 px-3 py-1.5 rounded-lg bg-surface border border-border">
+                <span class="text-text-muted">AI Provider:</span>
+                <span id="ai-active-provider" class="text-accent-cyan font-semibold">Connecting...</span>
+                <div class="flex items-center gap-1.5 pl-2 border-l border-border">
+                    <div id="ai-gemini-dot" class="w-2 h-2 rounded-full bg-text-muted"></div>
+                    <span class="text-text-secondary">Gemini 2.5</span>
+                </div>
+                <div class="flex items-center gap-1.5">
+                    <div id="ai-gemma-dot" class="w-2 h-2 rounded-full bg-text-muted"></div>
+                    <span class="text-text-secondary">Gemma 4 (MLX)</span>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- MAIN BODY WORKSPACE -->
+    <div class="flex-1 flex overflow-hidden">
+
+        <!-- SIDEBAR -->
+        <aside class="w-64 bg-bg-secondary border-r border-border flex flex-col shrink-0 p-4 justify-between">
+            <div class="space-y-6">
+                <!-- Navigation -->
+                <div>
+                    <div class="text-[11px] font-semibold text-text-muted uppercase tracking-wider mb-2.5 px-3">Command Center</div>
+                    <nav class="space-y-1">
+                        <button class="w-full flex items-center gap-3 px-3 py-2 rounded-lg bg-surface-elevated text-text-primary border border-border-strong text-xs font-semibold">
+                            <span class="text-accent-ai">🏥</span> HomeoCare Digital Twin
+                        </button>
+                        <button class="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-text-secondary hover:bg-surface text-xs font-medium transition-colors">
+                            <span class="text-text-muted">🛡️</span> Defensive Playbooks
+                        </button>
+                        <button class="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-text-secondary hover:bg-surface text-xs font-medium transition-colors">
+                            <span class="text-text-muted">📊</span> Clinical Blast Radius
+                        </button>
+                    </nav>
+                </div>
+
+                <!-- RED TEAM DETONATION TRIGGER -->
+                <div class="p-3.5 rounded-xl bg-surface border border-border space-y-3">
+                    <div class="flex items-center justify-between">
+                        <div class="flex items-center gap-2">
+                            <span class="w-2 h-2 rounded-full bg-severity-critical animate-ping"></span>
+                            <span class="text-xs font-bold text-text-primary uppercase tracking-wide">Red Team Detonation</span>
+                        </div>
+                        <span class="text-[10px] px-1.5 py-0.5 rounded bg-surface-elevated text-text-muted font-mono">Sandbox</span>
+                    </div>
+                    <p class="text-[11px] text-text-muted leading-relaxed">
+                        Trigger real adversary emulation techniques against the HomeoCare Azure sandbox.
+                    </p>
+                    
+                    <div class="space-y-1.5">
+                        <label class="text-[11px] text-text-secondary font-medium block">Select Emulation Scenario:</label>
+                        <select id="redteam-scenario-select" class="w-full bg-bg-tertiary border border-border text-text-primary text-xs rounded-lg px-2.5 py-1.5 focus:outline-none focus:border-accent-ai font-mono">
+                            <option value="A">Scenario A: Identity & Clinical Traversal (Device Gateway)</option>
+                            <option value="B">Scenario B: Azure Control-Plane Tampering (RBAC & Logs)</option>
+                            <option value="C">Scenario C: Synthetic Patient Records Exfiltration</option>
+                        </select>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-2 pt-1">
+                        <button id="btn-detonate" onclick="triggerRedTeamDetonation()" class="w-full py-2 px-3 rounded-lg bg-severity-critical/20 hover:bg-severity-critical/30 text-severity-critical border border-severity-critical/40 font-bold text-xs flex items-center justify-center gap-1.5 transition-all">
+                            <span>⚡</span> Detonate
+                        </button>
+                        <button id="btn-revert" onclick="revertSandbox()" class="w-full py-2 px-3 rounded-lg bg-surface-elevated hover:bg-border text-text-secondary border border-border font-medium text-xs flex items-center justify-center gap-1.5 transition-all">
+                            <span>🔄</span> Revert
+                        </button>
+                    </div>
+                    <div id="detonation-status-text" class="text-[10px] text-text-muted font-mono text-center truncate">Ready to emulate adversary</div>
+                </div>
+
+                <!-- Hospital Twin Snapshot -->
+                <div class="p-3 rounded-xl bg-surface border border-border text-xs space-y-2">
+                    <div class="flex items-center justify-between font-semibold">
+                        <span class="text-text-secondary">Monitored Assets:</span>
+                        <span id="asset-health-ratio" class="font-mono text-accent-ai font-bold">10/10 Healthy</span>
+                    </div>
+                    <div class="flex items-center justify-between font-semibold">
+                        <span class="text-text-secondary">Containment Actions:</span>
+                        <span id="containment-count" class="font-mono text-text-primary">0 Active</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Sidebar Footer -->
+            <div class="text-[11px] text-text-muted border-t border-border pt-3">
+                <div class="font-semibold text-text-secondary">HomeoCare Sandbox</div>
+                <div>Serverless Azure Architecture</div>
+            </div>
+        </aside>
+
+        <!-- WORKSPACE CONTENT -->
+        <main class="flex-1 overflow-y-auto p-6 space-y-6">
+
+            <!-- METRIC CARDS ROW -->
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <!-- Threat Level -->
+                <div class="panel-card p-4 flex flex-col justify-between">
+                    <div class="flex items-center justify-between text-xs text-text-muted font-semibold tracking-wider uppercase">
+                        <span>Threat Level</span>
+                        <span id="threat-indicator-dot" class="w-2.5 h-2.5 rounded-full bg-severity-benign"></span>
+                    </div>
+                    <div class="mt-2 flex items-baseline gap-3">
+                        <span id="threat-level-badge" class="text-2xl font-black tracking-tight text-severity-benign">BENIGN</span>
+                    </div>
+                    <div id="threat-level-desc" class="text-xs text-text-muted mt-1 truncate">No active intrusion detected</div>
+                </div>
+
+                <!-- Cyber Risk Score -->
+                <div class="panel-card p-4 flex flex-col justify-between">
+                    <div class="flex items-center justify-between text-xs text-text-muted font-semibold tracking-wider uppercase">
+                        <span>Cyber Risk Score</span>
+                        <span class="text-[10px] font-mono text-text-muted">0-100</span>
+                    </div>
+                    <div class="mt-2 flex items-baseline gap-2">
+                        <span id="cyber-risk-score" class="text-2xl font-black font-mono text-text-primary">0</span>
+                        <span class="text-xs text-text-muted">/ 100</span>
+                    </div>
+                    <div class="w-full bg-bg-tertiary h-1.5 rounded-full mt-2 overflow-hidden">
+                        <div id="cyber-risk-bar" class="bg-severity-benign h-full rounded-full transition-all duration-500" style="width: 5%"></div>
+                    </div>
+                </div>
+
+                <!-- Clinical Risk Score -->
+                <div class="panel-card p-4 flex flex-col justify-between border-l-4 border-l-clinical-high/40">
+                    <div class="flex items-center justify-between text-xs text-clinical-high font-semibold tracking-wider uppercase">
+                        <span>Clinical Risk Score</span>
+                        <span id="clinical-risk-level-tag" class="px-1.5 py-0.5 rounded bg-clinical-high/15 text-clinical-high text-[10px] font-mono font-bold">LOW</span>
+                    </div>
+                    <div class="mt-2 flex items-baseline gap-2">
+                        <span id="clinical-risk-score" class="text-2xl font-black font-mono text-text-primary">0</span>
+                        <span class="text-xs text-text-muted">/ 100</span>
+                    </div>
+                    <div class="text-xs text-text-muted mt-1 truncate">Patient Safety & Care Delivery</div>
+                </div>
+
+                <!-- Active Incident -->
+                <div class="panel-card p-4 flex flex-col justify-between">
+                    <div class="flex items-center justify-between text-xs text-text-muted font-semibold tracking-wider uppercase">
+                        <span>Active Incident</span>
+                        <span id="incident-status-pill" class="px-2 py-0.5 rounded-full bg-surface-elevated text-[10px] font-mono text-text-muted">IDLE</span>
+                    </div>
+                    <div class="mt-2">
+                        <div id="active-incident-id" class="text-lg font-bold font-mono text-accent-cyan truncate">NONE</div>
+                    </div>
+                    <div id="active-incident-stage" class="text-xs text-text-muted mt-1 truncate">System Operational</div>
+                </div>
+            </div>
+
+            <!-- TWO-COLUMN WORKSPACE: Telemetry Stream vs Attack Path & Asset Status -->
+            <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+
+                <!-- LEFT: Real-Time Azure Telemetry Stream (7 cols) -->
+                <div class="lg:col-span-7 panel-card flex flex-col overflow-hidden">
+                    <div class="p-4 border-b border-border flex items-center justify-between bg-surface-elevated/40">
+                        <div class="flex items-center gap-2.5">
+                            <span class="w-2 h-2 rounded-full bg-accent-ai animate-pulse"></span>
+                            <span class="font-bold text-xs uppercase tracking-wider text-text-primary">Live Security Telemetry</span>
+                            <span class="text-[11px] text-text-muted font-mono">Azure Activity Log & Event Grid</span>
+                        </div>
+                        <div class="text-[11px] text-text-muted font-mono" id="stream-count">0 events</div>
+                    </div>
+
+                    <div id="telemetry-feed" class="p-4 space-y-2.5 overflow-y-auto max-h-[380px] min-h-[340px] font-mono text-xs">
+                        <div class="h-64 flex flex-col items-center justify-center text-center p-6 text-text-muted">
+                            <div class="text-2xl mb-2">📡</div>
+                            <div class="font-semibold text-text-secondary text-sm">Monitoring HomeoCare Azure Sandbox</div>
+                            <p class="text-xs max-w-sm mt-1">
+                                No security anomalies detected. Click <span class="text-severity-critical font-bold">Detonate</span> in the Red Team panel to trigger adversary emulation.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- RIGHT: Attack Path Graph & Asset Status (5 cols) -->
+                <div class="lg:col-span-5 space-y-6">
+
+                    <!-- Discovered Attack Path -->
+                    <div class="panel-card p-4 flex flex-col">
+                        <div class="flex items-center justify-between pb-3 border-b border-border">
+                            <div class="flex items-center gap-2 font-bold text-xs uppercase tracking-wider text-text-primary">
+                                <span>🌐 Discovered Attack Path</span>
+                            </div>
+                            <span class="text-[10px] font-mono text-accent-ai bg-accent-ai/10 px-2 py-0.5 rounded">Digital Twin Graph</span>
+                        </div>
+
+                        <div id="attack-path-container" class="py-4 space-y-2">
+                            <div class="text-center py-6 text-xs text-text-muted">
+                                Digital twin graph ready. Path is clear.
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Hospital Assets Status -->
+                    <div class="panel-card p-4">
+                        <div class="flex items-center justify-between pb-3 border-b border-border">
+                            <div class="flex items-center gap-2 font-bold text-xs uppercase tracking-wider text-text-primary">
+                                <span>🏥 Hospital Asset Status</span>
+                            </div>
+                            <span class="text-[10px] font-mono text-text-muted">10 Canonical Nodes</span>
+                        </div>
+
+                        <div id="hospital-assets-grid" class="grid grid-cols-2 gap-2.5 pt-3 text-xs">
+                            <!-- Populated dynamically -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- MULTI-STEP AGENT ACTIVITY TIMELINE -->
+            <div class="panel-card p-5 space-y-3">
+                <div class="flex items-center justify-between border-b border-border pb-3">
+                    <div class="flex items-center gap-2 font-bold text-xs uppercase tracking-wider text-text-primary">
+                        <span>🤖 Agent Reasoning & Multi-Step Lifecycle</span>
+                    </div>
+                    <span id="agent-provider-tag" class="text-[11px] text-accent-ai font-mono font-semibold">Gemini 2.5 Flash</span>
+                </div>
+
+                <div id="agent-stepper" class="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-2 text-center text-xs">
+                    <div id="step-observing" class="p-2 rounded-lg bg-surface-elevated border border-border text-text-muted font-mono text-[11px]">1. OBSERVE</div>
+                    <div id="step-correlating" class="p-2 rounded-lg bg-surface-elevated border border-border text-text-muted font-mono text-[11px]">2. CORRELATE</div>
+                    <div id="step-investigating" class="p-2 rounded-lg bg-surface-elevated border border-border text-text-muted font-mono text-[11px]">3. INVESTIGATE</div>
+                    <div id="step-assessing" class="p-2 rounded-lg bg-surface-elevated border border-border text-text-muted font-mono text-[11px]">4. IMPACT</div>
+                    <div id="step-planning" class="p-2 rounded-lg bg-surface-elevated border border-border text-text-muted font-mono text-[11px]">5. PLAN</div>
+                    <div id="step-policy" class="p-2 rounded-lg bg-surface-elevated border border-border text-text-muted font-mono text-[11px]">6. POLICY</div>
+                    <div id="step-executing" class="p-2 rounded-lg bg-surface-elevated border border-border text-text-muted font-mono text-[11px]">7. DEFEND</div>
+                    <div id="step-contained" class="p-2 rounded-lg bg-surface-elevated border border-border text-text-muted font-mono text-[11px]">8. VERIFIED</div>
+                </div>
+
+                <div id="agent-explanation-box" class="p-3.5 rounded-lg bg-surface-elevated/50 border border-border text-xs text-text-secondary leading-relaxed font-sans">
+                    Agent standing by in observation mode. Telemetry correlation engine listening for security anomalies.
+                </div>
+            </div>
+
+            <!-- BOTTOM SECTION: Candidate Trade-Off Comparison & Verification -->
+            <div id="defense-action-section" class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+
+                <!-- Candidate Response Trade-Off Matrix (7 cols) -->
+                <div class="lg:col-span-7 panel-card p-5 space-y-4">
+                    <div class="flex items-center justify-between border-b border-border pb-3">
+                        <div>
+                            <div class="font-bold text-xs uppercase tracking-wider text-text-primary">Response Strategy Trade-Off Comparison</div>
+                            <div class="text-[11px] text-text-muted">Balancing Cyber Containment vs Clinical Disruption</div>
+                        </div>
+                        <span class="text-[10px] font-mono text-accent-ai bg-accent-ai/10 px-2 py-0.5 rounded font-bold">OPTIMIZATION ENGINE</span>
+                    </div>
+
+                    <div id="trade-offs-container" class="space-y-3 text-xs">
+                        <div class="text-center py-8 text-text-muted">Awaiting active incident investigation to evaluate containment trade-offs.</div>
+                    </div>
+                </div>
+
+                <!-- Before & After Verification Panel (5 cols) -->
+                <div class="lg:col-span-5 panel-card p-5 space-y-4 border-l-4 border-l-accent-ai/50">
+                    <div class="flex items-center justify-between border-b border-border pb-3">
+                        <div class="font-bold text-xs uppercase tracking-wider text-text-primary">Containment Verification Proof</div>
+                        <span id="verification-status-badge" class="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-surface-elevated text-text-muted">STANDBY</span>
+                    </div>
+
+                    <div id="verification-content" class="space-y-3 text-xs">
+                        <div class="p-3 rounded-lg bg-surface-elevated text-text-muted">
+                            Post-defense verification will evaluate the digital twin graph to verify that unauthorized lateral traversal paths have been severed.
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+        </main>
+    </div>
+
+    <!-- FOOTER -->
+    <footer class="h-9 bg-bg-secondary border-t border-border px-6 flex items-center justify-between text-[11px] text-text-muted shrink-0">
+        <div>MedShield AI · HomeoCare Hospital Digital Twin Defense · Microsoft Azure</div>
+        <div class="flex items-center gap-4 font-mono">
+            <span>Isolation Boundary: STRICT SANDBOX</span>
+            <span>Zero real clinical hardware connected</span>
+        </div>
+    </footer>
+
+    <!-- JAVASCRIPT APPLICATION LOGIC -->
+    <script>
+        const API_BASE = localStorage.getItem('MEDSHIELD_API') || 'http://localhost:8000';
+        let currentIncidentId = null;
+        let pollTimer = null;
+
+        const CANONICAL_ASSETS = [
+            { id: 'patient_portal', name: 'Patient Portal', zone: 'DMZ', crit: 5 },
+            { id: 'identity_service', name: 'Identity Service', zone: 'Identity', crit: 9 },
+            { id: 'ehr_api', name: 'EHR API', zone: 'Clinical', crit: 10 },
+            { id: 'patient_db', name: 'Patient Database', zone: 'Data', crit: 10 },
+            { id: 'pharmacy_api', name: 'Pharmacy API', zone: 'Clinical', crit: 9 },
+            { id: 'medication_db', name: 'Medication Database', zone: 'Data', crit: 9 },
+            { id: 'radiology_api', name: 'Radiology API', zone: 'Clinical', crit: 8 },
+            { id: 'device_gateway', name: 'Medical Device Gateway', zone: 'Device', crit: 10 },
+            { id: 'soc_api', name: 'MedShield SOC API', zone: 'Security', crit: 10 },
+            { id: 'log_pipeline', name: 'Telemetry Pipeline', zone: 'Security', crit: 10 },
+        ];
+
+        // 1. Initialize on Load
+        window.addEventListener('DOMContentLoaded', () => {
+            renderAssetsGrid({});
+            checkHealth();
+            fetchTelemetryStream();
+            pollTimer = setInterval(fetchTelemetryStream, 3000);
+        });
+
+        // 2. Health Check
+        async function checkHealth() {
+            try {
+                const res = await fetch(`${API_BASE}/health`);
+                if (!res.ok) throw new Error();
+                const data = await res.json();
+                
+                document.getElementById('ai-active-provider').textContent = data.active_provider;
+                
+                // Indicators
+                const geminiDot = document.getElementById('ai-gemini-dot');
+                geminiDot.className = `w-2 h-2 rounded-full ${data.gemini_configured ? 'bg-accent-ai' : 'bg-text-muted'}`;
+                
+                const gemmaDot = document.getElementById('ai-gemma-dot');
+                gemmaDot.className = `w-2 h-2 rounded-full ${data.local_gemma_configured ? 'bg-accent-ai' : 'bg-text-muted'}`;
+
+                document.getElementById('containment-count').textContent = `${data.active_containments || 0} Active`;
+            } catch (err) {
+                document.getElementById('ai-active-provider').textContent = 'Backend Offline';
+            }
+        }
+
+        // 3. Render Asset Grid
+        function renderAssetsGrid(statusMap) {
+            const container = document.getElementById('hospital-assets-grid');
+            container.innerHTML = CANONICAL_ASSETS.map(asset => {
+                const status = statusMap[asset.id] || 'healthy';
+                let dotColor = 'bg-severity-benign';
+                let statusLabel = 'HEALTHY';
+                if (status === 'warning' || status === 'affected') {
+                    dotColor = 'bg-severity-high';
+                    statusLabel = 'ALERT';
+                } else if (status === 'critical' || status === 'compromised') {
+                    dotColor = 'bg-severity-critical';
+                    statusLabel = 'CRITICAL';
+                } else if (status === 'isolated') {
+                    dotColor = 'bg-accent-cyan';
+                    statusLabel = 'ISOLATED';
+                }
+
+                return `
+                    <div class="p-2 rounded-lg bg-surface-elevated/70 border border-border flex items-center justify-between">
+                        <div class="truncate mr-2">
+                            <div class="font-semibold text-text-primary truncate text-[11px]">${asset.name}</div>
+                            <div class="text-[9px] text-text-muted">${asset.zone} · Crit: ${asset.crit}/10</div>
+                        </div>
+                        <div class="flex items-center gap-1.5 shrink-0">
+                            <span class="w-2 h-2 rounded-full ${dotColor}"></span>
+                            <span class="font-mono text-[9px] font-bold text-text-secondary">${statusLabel}</span>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        // 4. Fetch Live Telemetry Stream
+        async function fetchTelemetryStream() {
+            try {
+                const res = await fetch(`${API_BASE}/api/telemetry/stream`);
+                if (!res.ok) return;
+                const data = await res.json();
+                const events = data.stream || [];
+                const agentStatus = data.agent_status || {};
+
+                document.getElementById('stream-count').textContent = `${events.length} events logged`;
+                if (agentStatus.current_state) {
+                    updateAgentState(agentStatus.current_state);
+                }
+
+                if (events.length > 0) {
+                    renderTelemetryEvents(events);
+                    // Check active incident
+                    fetchActiveIncidents();
+                }
+            } catch (e) {
+                // Ignore transient network errors
+            }
+        }
+
+        function renderTelemetryEvents(events) {
+            const feed = document.getElementById('telemetry-feed');
+            feed.innerHTML = events.slice(0, 15).map(ev => {
+                let badgeClass = 'text-severity-low bg-severity-low/10';
+                if (ev.severity === 'critical') badgeClass = 'text-severity-critical bg-severity-critical/15';
+                else if (ev.severity === 'high') badgeClass = 'text-severity-high bg-severity-high/15';
+                else if (ev.severity === 'medium') badgeClass = 'text-severity-medium bg-severity-medium/15';
+
+                return `
+                    <div class="p-2.5 rounded-lg bg-surface-elevated/40 border border-border/80 flex items-start justify-between gap-3 text-[11px]">
+                        <div class="space-y-0.5">
+                            <div class="flex items-center gap-2">
+                                <span class="font-bold text-text-primary">${ev.operation}</span>
+                                <span class="text-text-muted">➔</span>
+                                <span class="text-accent-cyan">${ev.asset_id || ev.resource_id || 'HomeoCare'}</span>
+                            </div>
+                            <div class="text-text-muted text-[10px]">${ev.details}</div>
+                            <div class="text-text-muted text-[9px]">Actor: <span class="text-text-secondary">${ev.caller}</span> @ ${ev.source_ip}</div>
+                        </div>
+                        <div class="text-right shrink-0">
+                            <span class="px-1.5 py-0.5 rounded font-bold uppercase text-[9px] ${badgeClass}">${ev.severity}</span>
+                            <div class="text-[9px] text-text-muted mt-1">${ev.timestamp.substring(11, 19) || ev.timestamp}</div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        // 5. Fetch Active Incidents & Auto-Trigger Investigation
+        async function fetchActiveIncidents() {
+            try {
+                const res = await fetch(`${API_BASE}/api/incidents`);
+                if (!res.ok) return;
+                const data = await res.json();
+                const list = data.incidents || [];
+                if (list.length > 0) {
+                    const active = list[0];
+                    if (currentIncidentId !== active.incident_id) {
+                        currentIncidentId = active.incident_id;
+                        document.getElementById('active-incident-id').textContent = active.incident_id;
+                        document.getElementById('incident-status-pill').textContent = active.status.toUpperCase();
+                        investigateIncident(active.incident_id);
+                    }
+                }
+            } catch (e) {}
+        }
+
+        // 6. Investigate Incident
+        async function investigateIncident(incidentId) {
+            updateAgentState('INVESTIGATING');
+            try {
+                const res = await fetch(`${API_BASE}/api/incidents/${incidentId}/investigate`, { method: 'POST' });
+                if (!res.ok) return;
+                const analysis = await res.json();
+
+                renderAnalysis(analysis);
+            } catch (e) {}
+        }
+
+        // 7. Render Incident Analysis
+        function renderAnalysis(analysis) {
+            // Threat metrics
+            document.getElementById('threat-level-badge').textContent = analysis.threat_level;
+            document.getElementById('threat-level-badge').className = `text-2xl font-black tracking-tight text-severity-${analysis.threat_level.toLowerCase()}`;
+            document.getElementById('threat-level-desc').textContent = analysis.attack_type;
+
+            document.getElementById('cyber-risk-score').textContent = analysis.cyber_risk_score;
+            document.getElementById('cyber-risk-bar').style.width = `${analysis.cyber_risk_score}%`;
+            document.getElementById('cyber-risk-bar').className = `h-full rounded-full transition-all duration-500 bg-severity-${analysis.threat_level.toLowerCase()}`;
+
+            document.getElementById('clinical-risk-score').textContent = analysis.clinical_risk_score;
+            document.getElementById('clinical-risk-level-tag').textContent = analysis.clinical_risk_level;
+
+            // Attack Path
+            const pathContainer = document.getElementById('attack-path-container');
+            const chain = analysis.attack_chain || [];
+            pathContainer.innerHTML = chain.map((step, idx) => {
+                const isLast = idx === chain.length - 1;
+                const dotCol = isLast ? 'bg-severity-critical text-white' : 'bg-severity-high text-bg-primary';
+                return `
+                    <div class="flex items-center gap-3 text-xs">
+                        <div class="w-6 h-6 rounded-full ${dotCol} flex items-center justify-center font-bold text-[11px] shrink-0">
+                            ${idx + 1}
+                        </div>
+                        <div class="p-2 rounded bg-surface-elevated/70 border border-border flex-1 font-mono text-[11px] text-text-primary">
+                            ${step}
+                        </div>
+                    </div>
+                `;
+            }).join('<div class="w-0.5 h-3 bg-border ml-3 my-0.5"></div>');
+
+            // Asset status mapping
+            const assetMap = {};
+            (analysis.affected_assets || []).forEach(a => assetMap[a] = 'affected');
+            if (analysis.affected_assets && analysis.affected_assets.includes('device_gateway')) {
+                assetMap['device_gateway'] = 'critical';
+            }
+            renderAssetsGrid(assetMap);
+
+            // Agent explanation
+            document.getElementById('agent-explanation-box').innerHTML = `
+                <div class="font-bold text-text-primary mb-1">Incident Assessment · ${analysis.provider} (${analysis.model})</div>
+                <p class="mb-2">${analysis.analyst_summary}</p>
+                <div class="p-2 rounded bg-clinical-high/10 border border-clinical-high/30 text-clinical-high font-medium text-[11px]">
+                    ⚠️ <strong>Patient Safety Exposure:</strong> ${analysis.patient_safety_impact}
+                </div>
+            `;
+
+            // Trade-offs Comparison
+            renderTradeOffs(analysis);
+
+            // Verification
+            if (analysis.verification) {
+                renderVerification(analysis.verification);
+            }
+        }
+
+        // 8. Render Trade-Offs
+        function renderTradeOffs(analysis) {
+            const container = document.getElementById('trade-offs-container');
+            const tradeOffs = analysis.candidate_trade_offs || {};
+            const keys = Object.keys(tradeOffs);
+
+            if (keys.length === 0) {
+                container.innerHTML = `<div class="text-center text-text-muted py-4">No trade-offs available.</div>`;
+                return;
+            }
+
+            container.innerHTML = keys.map(k => {
+                const item = tradeOffs[k];
+                const isPref = item.preferred;
+                const borderClass = isPref ? 'border-accent-ai bg-accent-ai/5' : 'border-border bg-surface-elevated/40';
+
+                return `
+                    <div class="p-3.5 rounded-xl border ${borderClass} space-y-2">
+                        <div class="flex items-center justify-between">
+                            <div class="font-bold text-text-primary text-xs flex items-center gap-2">
+                                <span>${item.label}</span>
+                                ${isPref ? '<span class="px-1.5 py-0.5 rounded bg-accent-ai/20 text-accent-ai font-mono text-[9px] font-bold">RECOMMENDED</span>' : ''}
+                            </div>
+                            <button onclick="executeDefense('${item.action}', '${analysis.recommended_action?.target || 'nurse_admin'}')" 
+                                    class="px-3 py-1.5 rounded-lg ${isPref ? 'bg-accent-ai hover:bg-accent-ai/80 text-bg-primary font-bold' : 'bg-surface hover:bg-border text-text-secondary border border-border'} text-[11px] transition-all">
+                                Execute
+                            </button>
+                        </div>
+                        <p class="text-[11px] text-text-muted leading-relaxed">${item.description}</p>
+                        <div class="flex items-center gap-4 text-[10px] font-mono pt-1">
+                            <span class="text-text-secondary">Containment: <strong class="text-accent-ai">${item.cyber_containment_pct}%</strong></span>
+                            <span class="text-text-secondary">Clinical Disruption: <strong class="${item.clinical_disruption === 'LOW' ? 'text-severity-benign' : 'text-severity-critical'}">${item.clinical_disruption}</strong></span>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        // 9. Execute Constrained Defense Action
+        async function executeDefense(action, target) {
+            if (!currentIncidentId) return;
+            updateAgentState('EXECUTING');
+            try {
+                const res = await fetch(`${API_BASE}/api/incidents/${currentIncidentId}/respond`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ action, target, mode: 'sandbox_execute' })
+                });
+                const data = await res.json();
+                renderVerification(data.verification);
+                updateAgentState('CONTAINED');
+                checkHealth();
+            } catch (e) {}
+        }
+
+        // 10. Render Verification Proof
+        function renderVerification(v) {
+            const badge = document.getElementById('verification-status-badge');
+            const content = document.getElementById('verification-content');
+
+            if (v.state === 'contained') {
+                badge.className = 'px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-accent-ai/20 text-accent-ai border border-accent-ai/40';
+                badge.textContent = 'CONTAINED ✓';
+                content.innerHTML = `
+                    <div class="p-3 rounded-lg bg-surface-elevated border border-accent-ai/30 space-y-2">
+                        <div class="flex items-center gap-2 font-bold text-accent-ai text-xs">
+                            <span>🛡️ Threat Path Successfully Severed</span>
+                        </div>
+                        <p class="text-text-secondary text-[11px] leading-relaxed">${v.details}</p>
+                        <div class="p-2 rounded bg-bg-primary font-mono text-[10px] text-text-muted border border-border">
+                            <div>BEFORE: identity_service ➔ pharmacy_api ➔ device_gateway</div>
+                            <div class="text-accent-ai font-bold mt-1">AFTER:  identity_service -X-> pharmacy_api</div>
+                        </div>
+                    </div>
+                `;
+            }
+        }
+
+        // 11. State Machine Visualizer
+        function updateAgentState(state) {
+            document.getElementById('agent-state-badge').textContent = state;
+            const steps = ['observing', 'correlating', 'investigating', 'assessing', 'planning', 'policy', 'executing', 'contained'];
+            const activeIndex = {
+                'IDLE': 0, 'OBSERVING': 0, 'CORRELATING': 1, 'INVESTIGATING': 2,
+                'ASSESSING_IMPACT': 3, 'PLANNING_RESPONSE': 4, 'AWAITING_POLICY_CHECK': 5,
+                'EXECUTING_RESPONSE': 6, 'VERIFYING': 6, 'CONTAINED': 7
+            }[state] || 0;
+
+            steps.forEach((step, idx) => {
+                const el = document.getElementById(`step-${step}`);
+                if (idx < activeIndex) {
+                    el.className = 'p-2 rounded-lg bg-accent-ai/10 border border-accent-ai/30 text-accent-ai font-mono text-[11px] font-bold';
+                } else if (idx === activeIndex) {
+                    el.className = 'p-2 rounded-lg bg-accent-ai text-bg-primary border border-accent-ai font-mono text-[11px] font-black animate-pulse';
+                } else {
+                    el.className = 'p-2 rounded-lg bg-surface-elevated border border-border text-text-muted font-mono text-[11px]';
+                }
+            });
+        }
+
+        // 12. Red Team Detonation
+        async function triggerRedTeamDetonation() {
+            const scenario = document.getElementById('redteam-scenario-select').value;
+            const statusText = document.getElementById('detonation-status-text');
+            statusText.textContent = `Detonating Scenario ${scenario}...`;
+
+            try {
+                const res = await fetch(`${API_BASE}/api/redteam/detonate`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ scenario })
+                });
+                const data = await res.json();
+                statusText.textContent = `Scenario ${scenario} active. Streaming telemetry...`;
+                setTimeout(fetchTelemetryStream, 1500);
+            } catch (e) {
+                statusText.textContent = 'Detonation failed';
+            }
+        }
+
+        // 13. Revert Sandbox
+        async function revertSandbox() {
+            const statusText = document.getElementById('detonation-status-text');
+            statusText.textContent = 'Restoring sandbox...';
+            try {
+                const res = await fetch(`${API_BASE}/api/redteam/revert`, { method: 'POST' });
+                const data = await res.json();
+                currentIncidentId = null;
+                document.getElementById('active-incident-id').textContent = 'NONE';
+                document.getElementById('incident-status-pill').textContent = 'IDLE';
+                document.getElementById('threat-level-badge').textContent = 'BENIGN';
+                document.getElementById('threat-level-badge').className = 'text-2xl font-black tracking-tight text-severity-benign';
+                document.getElementById('threat-level-desc').textContent = 'No active intrusion detected';
+                document.getElementById('cyber-risk-score').textContent = '0';
+                document.getElementById('cyber-risk-bar').style.width = '5%';
+                document.getElementById('cyber-risk-bar').className = 'bg-severity-benign h-full rounded-full transition-all duration-500';
+                document.getElementById('clinical-risk-score').textContent = '0';
+                document.getElementById('clinical-risk-level-tag').textContent = 'LOW';
+                document.getElementById('attack-path-container').innerHTML = '<div class="text-center py-6 text-xs text-text-muted">Digital twin graph ready. Path is clear.</div>';
+                document.getElementById('trade-offs-container').innerHTML = '<div class="text-center py-8 text-text-muted">Awaiting active incident investigation to evaluate containment trade-offs.</div>';
+                document.getElementById('verification-content').innerHTML = '<div class="p-3 rounded-lg bg-surface-elevated text-text-muted">Post-defense verification will evaluate the digital twin graph to verify that unauthorized lateral traversal paths have been severed.</div>';
+                document.getElementById('verification-status-badge').textContent = 'STANDBY';
+                document.getElementById('verification-status-badge').className = 'px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-surface-elevated text-text-muted';
+                renderAssetsGrid({});
+                updateAgentState('IDLE');
+                statusText.textContent = 'Sandbox restored to clean baseline.';
+            } catch (e) {
+                statusText.textContent = 'Revert failed';
+            }
+        }
+    </script>
+</body>
+</html>

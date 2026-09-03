@@ -1,0 +1,31 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: MedShield AI - serverless healthcare cybersecurity demo
+Globals:
+  Function:
+    Timeout: 30
+    MemorySize: 1024
+    Runtime: python3.12
+    Environment:
+      Variables:
+        GEMINI_MODEL: gemini-3.7-flash
+Resources:
+  MedShieldApi:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: ../backend/
+      Handler: lambda_handler.handler
+      Policies:
+        - AWSLambdaBasicExecutionRole
+      Events:
+        Proxy:
+          Type: HttpApi
+          Properties:
+            Path: /{proxy+}
+            Method: ANY
+      Environment:
+        Variables:
+          GEMINI_API_KEY: '{{resolve:secretsmanager:medshield/gemini:SecretString:api_key}}'
+Outputs:
+  ApiUrl:
+    Value: !Sub 'https://${ServerlessHttpApi}.execute-api.${AWS::Region}.amazonaws.com'
