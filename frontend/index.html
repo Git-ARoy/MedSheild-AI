@@ -393,7 +393,9 @@
 
     <!-- JAVASCRIPT APPLICATION LOGIC -->
     <script>
-        const API_BASE = localStorage.getItem('MEDSHIELD_API') || 'http://localhost:8000';
+        const isAzure = window.location.hostname.includes('web.core.windows.net') || window.location.hostname.includes('azurewebsites.net');
+        const defaultApi = isAzure ? 'https://app-homeocare-api-7ku55hwzeivuc.azurewebsites.net' : 'http://localhost:8000';
+        const API_BASE = localStorage.getItem('MEDSHIELD_API') || defaultApi;
         let currentIncidentId = null;
         let pollTimer = null;
 

@@ -209,6 +209,11 @@ python3 -m http.server 3000
 ```
 Navigate to `http://localhost:3000` to interact with the dashboard.
 
+> **Zero-Config Cloud Detection**: The dashboard automatically detects whether it is running locally or hosted on Azure (`web.core.windows.net` / `azurewebsites.net`). In Azure, it routes seamlessly to the deployed App Service (`https://app-homeocare-api-7ku55hwzeivuc.azurewebsites.net`), while locally it targets `http://localhost:8000`. You can also override the endpoint dynamically in your browser console:
+> ```javascript
+> localStorage.setItem('MEDSHIELD_API', 'https://your-custom-backend-url');
+> ```
+
 ---
 
 ## 5. Adversary Emulation & Red Team Scenarios
@@ -221,9 +226,9 @@ MedShield AI includes three automated adversary emulation scenarios that inject 
 | **Scenario B** | **Control Plane Privilege Escalation** | Azure Contributor role assumption &rarr; Azure Key Vault secret harvest | **High**: Infrastructure-wide secret exposure and clinical database tampering risk |
 | **Scenario C** | **Synthetic EHR Data Exfiltration** | Anomalous read burst across synthetic patient blob storage (`sthomeocare`) | **Severe**: HIPAA violation risk and synthetic patient identity leakage |
 
-### Executing Red Team Scenarios:
-- **From Dashboard**: Select the scenario from the *Red Team Adversary Emulation* panel and click **Detonate Scenario**.
-- **From Terminal**:
+### Dual-Mode Detonation Engine:
+- **Cloud-Native In-Memory Detonation**: When running in containerized or serverless environments (Azure App Service / AWS Lambda) where bash scripts cannot execute, the backend automatically falls back to an internal, asynchronous Python event generator that maps and streams the exact attack sequence directly into the normalization and correlation pipeline.
+- **Local Shell Detonation**: In local/sandbox development with bash installed, detonates via external shell scripts:
   ```bash
   # Trigger Scenario A
   bash redteam/scenario_a_identity_clinical.sh
@@ -231,12 +236,13 @@ MedShield AI includes three automated adversary emulation scenarios that inject 
   # Reset sandbox back to clean baseline
   bash redteam/revert_azure_sandbox.sh
   ```
+- **From Dashboard**: Select the desired scenario from the *Red Team Adversary Emulation* control panel and click **Detonate Scenario**. One-click **Revert Sandbox** clears all active intrusions and restores digital twin health.
 
 ---
 
 ## 6. Cloud Deployment
 
-### Microsoft Azure Sandbox (Bicep)
+### Microsoft Azure Sandbox & App Service (Bicep)
 Deploy the complete HomeoCare hospital synthetic infrastructure:
 ```bash
 cd infra
@@ -248,6 +254,7 @@ This deploys:
 - Log Analytics Workspace (`law-homeocare-...`)
 - Azure Key Vault (`kv-homeocare-...`) with RBAC & secret storage
 - Azure Storage Account with synthetic patient record containers
+- Azure App Service (`app-homeocare-api-...`) hosting the FastAPI backend
 - Network Security Groups isolating clinical tiers
 
 ### AWS Serverless Deployment (SAM)

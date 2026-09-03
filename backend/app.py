@@ -228,20 +228,47 @@ def detonate_redteam_scenario(req: RedTeamDetonateRequest):
     script_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), script)
 
     if os.path.exists(script_path):
-        # Run asynchronous detonation
+        # Run asynchronous detonation via bash script
         subprocess.Popen(["bash", script_path], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        return {
-            "status": "DETONATION_INITIATED",
-            "scenario": scenario,
-            "script": script,
-            "message": f"Scenario {scenario} triggered against HomeoCare sandbox. Security events streaming to MedShield.",
-        }
     else:
-        # Inline fallback detonation
-        return {
-            "status": "DETONATION_FAILED",
-            "message": f"Script not found at {script_path}",
-        }
+        # Native Python detonation fallback for cloud environment
+        now_str = datetime.now(timezone.utc).strftime("%H:%M:%S")
+        if scenario == "A":
+            events = [
+                {"user": "nurse_admin", "source_ip": "185.91.22.14", "action": "FAILED_LOGIN_BURST", "asset": "Identity Gateway", "severity": "medium", "details": "17 failed logins in 31s"},
+                {"user": "nurse_admin", "source_ip": "185.91.22.14", "action": "LOGIN_SUCCESS", "asset": "Identity Gateway", "severity": "high", "details": "Successful login after anomaly"},
+                {"user": "nurse_admin", "source_ip": "185.91.22.14", "action": "ROLE_ASSIGNMENT_ESCALATE", "asset": "Identity Gateway", "severity": "high", "details": "Elevated to admin role"},
+                {"user": "nurse_admin", "source_ip": "185.91.22.14", "action": "DATA_QUERY_BULK", "asset": "Patient Database", "severity": "high", "details": "Bulk synthetic patient record query"},
+                {"user": "nurse_admin", "source_ip": "185.91.22.14", "action": "API_ENUMERATION", "asset": "Medication Service", "severity": "high", "details": "Pharmacy endpoints enumerated"},
+                {"user": "nurse_admin", "source_ip": "185.91.22.14", "action": "DEVICE_SESSION_ESTABLISH", "asset": "Infusion Pump Gateway", "severity": "critical", "details": "Unauthorized session on simulated device gateway"},
+            ]
+        elif scenario == "B":
+            events = [
+                {"user": "azure_service_operator", "source_ip": "194.26.29.11", "action": "MICROSOFT.AUTHORIZATION/ROLEASSIGNMENTS/WRITE", "asset": "Identity Gateway", "severity": "high", "details": "Unauthorized Contributor role assignment"},
+                {"user": "azure_service_operator", "source_ip": "194.26.29.11", "action": "MICROSOFT.INSIGHTS/DIAGNOSTICSETTINGS/DELETE", "asset": "Security Telemetry Pipeline", "severity": "critical", "details": "Attempt to disable Log Analytics audit trail"},
+                {"user": "azure_service_operator", "source_ip": "194.26.29.11", "action": "MICROSOFT.NETWORK/NETWORKSECURITYGROUPS/SECURITYRULES/WRITE", "asset": "EHR Admin API", "severity": "high", "details": "Inbound NSG rule opened from public IP"},
+                {"user": "azure_service_operator", "source_ip": "194.26.29.11", "action": "MICROSOFT.STORAGE/STORAGEACCOUNTS/LISTKEYS/ACTION", "asset": "Patient Database", "severity": "high", "details": "Storage account master key retrieved"},
+            ]
+        else:
+            events = [
+                {"user": "compromised_billing_agent", "source_ip": "91.240.118.82", "action": "BLOB_SAS_GENERATION", "asset": "Patient Database", "severity": "medium", "details": "Shared Access Signature token generated"},
+                {"user": "compromised_billing_agent", "source_ip": "91.240.118.82", "action": "STORAGE_BLOB_LIST", "asset": "Patient Database", "severity": "high", "details": "Enumeration of all synthetic patient record blobs"},
+                {"user": "compromised_billing_agent", "source_ip": "91.240.118.82", "action": "STORAGE_BLOB_BULK_READ", "asset": "Patient Database", "severity": "critical", "details": "540 synthetic patient encounter summaries downloaded"},
+                {"user": "compromised_billing_agent", "source_ip": "91.240.118.82", "action": "EHR_ARCHIVE_EXPORT", "asset": "EHR Admin API", "severity": "critical", "details": "Direct export requested for restricted charts"},
+            ]
+        for e in events:
+            e["timestamp"] = now_str
+            e["source"] = "azure_activity_log"
+            mapped = mapper.map_to_asset_id(e.get("asset", ""), e.get("action", ""))
+            norm = EventNormalizer.normalize_generic_event(e, mapped_asset=mapped)
+            orchestrator.process_incoming_event(norm)
+
+    return {
+        "status": "DETONATION_INITIATED",
+        "scenario": scenario,
+        "script": script,
+        "message": f"Scenario {scenario} triggered against HomeoCare sandbox. Security events streaming to MedShield.",
+    }
 
 @app.post("/api/redteam/revert")
 def revert_sandbox():
