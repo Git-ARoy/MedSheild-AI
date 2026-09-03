@@ -19,10 +19,11 @@ class AIProviderRouter:
 
     def __init__(self):
         self.gemini_api_key = os.getenv("GEMINI_API_KEY", "")
-        self.gemini_model = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
+        self.gemini_model = os.getenv("GEMINI_MODEL", "gemini-3.6-flash")
         self.local_gemma_url = os.getenv("LOCAL_GEMMA_BASE_URL", "http://localhost:11434/v1")
         self.local_gemma_model = os.getenv("LOCAL_GEMMA_MODEL", "gemma4:12b-mlx")
         self.timeout = int(os.getenv("AI_PROVIDER_TIMEOUT_SECONDS", "60"))
+        self.gemini_timeout = 10
 
     def analyze(self, incident_context: Dict[str, Any]) -> IncidentAnalysis:
         pref = os.getenv("AI_PROVIDER", "auto").lower()
@@ -85,7 +86,7 @@ class AIProviderRouter:
 
         # Direct REST API fallback for Gemini
         url = f"https://generativelanguage.googleapis.com/v1beta/models/{self.gemini_model}:generateContent?key={api_key}"
-        with httpx.Client(timeout=self.timeout) as http_client:
+        with httpx.Client(timeout=self.gemini_timeout) as http_client:
             resp = http_client.post(
                 url,
                 json={
@@ -131,7 +132,14 @@ class AIProviderRouter:
             if not content.startswith("{") and "{" in content:
                 content = content[content.find("{"):content.rfind("}")+1]
 
-            res = IncidentAnalysis.model_validate_json(content)
+            parsed = json.loads(content) if isinstance(content, str) else content
+            # Ensure required schema fields exist by merging with baseline
+            baseline = self._deterministic_analysis(context).model_dump()
+            for key, val in baseline.items():
+                if key not in parsed or parsed[key] is None or (isinstance(parsed[key], list) and len(parsed[key]) == 0):
+                    parsed[key] = val
+
+            res = IncidentAnalysis.model_validate(parsed)
             res.provider = "local_gemma"
             res.model = f"{self.local_gemma_model} (MLX/Local)"
             return res
